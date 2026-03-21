@@ -475,7 +475,7 @@ int CAimbotHitscan::CanHit(Target_t& tTarget, CTFPlayer* pLocal, CTFWeaponBase* 
 							tTarget.m_bBacktrack = true;
 							return true;
 						}
-						else if (bChanged)
+						else if (bChanged) // VisPos already passed in outer condition
 						{
 							if (iReturn != 2 || vAngles.DeltaAngle(G::CurrentUserCmd->viewangles).Length2D() < tTarget.m_vAngleTo.DeltaAngle(G::CurrentUserCmd->viewangles).Length2D())
 								tTarget.m_vAngleTo = vAngles;
@@ -546,7 +546,7 @@ int CAimbotHitscan::CanHit(Target_t& tTarget, CTFPlayer* pLocal, CTFWeaponBase* 
 						tTarget.m_vPos = vOrigin;
 						return true;
 					}
-					else if (bChanged)
+					else if (bChanged) // VisPos already passed in outer condition
 					{
 						if (iReturn != 2 || vAngles.DeltaAngle(G::CurrentUserCmd->viewangles).Length2D() < tTarget.m_vAngleTo.DeltaAngle(G::CurrentUserCmd->viewangles).Length2D())
 							tTarget.m_vAngleTo = vAngles;
