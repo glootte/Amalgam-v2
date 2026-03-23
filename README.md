@@ -6,14 +6,14 @@
   ##
   
 Read about the original Amalgam documentation and features [here](https://github.com/rei-2/Amalgam/wiki).  
-Note: This repository is based on **TheGameEnhancer2004's fork** of Amalgam and includes additional changes and improvements.
 
-**Thanks @mlemlody for the crashfix.**
+# Note: This fork is for people who are too lazy or don't know how to compile locally. Nothing will change from the original repository.
 
-*If you find this fork useful, please consider starring it. It really keeps me motivated and makes me feel like I'm not working on this alone!*
+## Download from Actions > Most recent workflow > Scroll down and select "Amalgamx64Release" or its other variants, **NOT** "Amalgamx64Release[x]PDB"
+
 </div>
 
-## Changes I've Made
+## Changes
 
 - Added **Smart Airblast** (Experimental) Automatically prioritizes reflecting lethal and critical projectiles.
 - Added Sniper **Triggerbot Detection**: Analyzes reaction times to detect instant headshots on enemies peeking while scoped.
