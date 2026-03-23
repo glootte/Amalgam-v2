@@ -102,7 +102,7 @@ void CMovementSimulation::Store()
 		auto pPlayer = pEntity->As<CTFPlayer>();
 		auto& vRecords = m_mRecords[pPlayer->entindex()];
 
-		if (pPlayer->IsDormant() || !pPlayer->IsAlive() || pPlayer->IsAGhost() || pPlayer->m_vecVelocity().IsZero())
+		if (!pPlayer->IsAlive() || pPlayer->IsAGhost() || pPlayer->m_vecVelocity().IsZero())
 		{
 			vRecords.clear();
 			continue;
@@ -135,7 +135,7 @@ void CMovementSimulation::Store()
 		auto pPlayer = pEntity->As<CTFPlayer>();
 		auto& vSimTimes = m_mSimTimes[pPlayer->entindex()];
 
-		if (pEntity->entindex() == I::EngineClient->GetLocalPlayer() || pPlayer->IsDormant() || !pPlayer->IsAlive() || pPlayer->IsAGhost())
+		if (pEntity->entindex() == I::EngineClient->GetLocalPlayer() || !pPlayer->IsAlive() || pPlayer->IsAGhost())
 		{
 			vSimTimes.clear();
 			continue;
@@ -246,8 +246,7 @@ bool CMovementSimulation::Initialize(CBaseEntity* pEntity, MoveStorage& tMoveSto
 
 		if (flCurrentChance < Vars::Aimbot::Projectile::HitChance.Value / 100)
 		{
-			if (Vars::Debug::Logging.Value)
-				SDK::Output("MovementSimulation", std::format("Hitchance ({}% < {}%)", flCurrentChance * 100, Vars::Aimbot::Projectile::HitChance.Value).c_str(), { 80, 200, 120 }, OUTPUT_CONSOLE | OUTPUT_DEBUG);
+			SDK::Output("MovementSimulation", std::format("Hitchance ({}% < {}%)", flCurrentChance * 100, Vars::Aimbot::Projectile::HitChance.Value).c_str(), { 80, 200, 120 }, Vars::Debug::Logging.Value);
 
 			tMoveStorage.m_bFailed = true;
 			return false;
@@ -371,10 +370,11 @@ static inline void VisualizeRecords(MoveData& tRecord1, MoveData& tRecord2, Colo
 	}
 }
 #endif
-
+/*
 static inline bool GetYawDifference(MoveData& tRecord1, MoveData& tRecord2, bool bStart, float* pYaw, float flStraightFuzzyValue, int iMaxChanges = 0, int iMaxChangeTime = 0, float flMaxSpeed = 0.f)
 {
-	const float flYaw1 = Math::VectorAngles(tRecord1.m_vDirection).y, flYaw2 = Math::VectorAngles(tRecord2.m_vDirection).y;
+	const float flYaw1 = Math::VectorAngles(tRecord1.m_vDirection).y, 
+		flYaw2 = Math::VectorAngles(tRecord2.m_vDirection).y;
 	const float flTime1 = tRecord1.m_flSimTime, flTime2 = tRecord2.m_flSimTime;
 	const int iTicks = std::max(TIME_TO_TICKS(flTime1 - flTime2), 1);
 
@@ -412,7 +412,50 @@ static inline bool GetYawDifference(MoveData& tRecord1, MoveData& tRecord2, bool
 			return false;
 		return iChanges && iStart - TIME_TO_TICKS(flTime2) > iMaxChangeTime ? false : true;
 	}
+}*/
+
+static bool GetYawDifference(MoveData& tRecord1, MoveData& tRecord2, bool bStart, float* pYaw, float flStraightFuzzyValue, int iMaxChanges = 0, int iMaxChangeTime = 0, float flMaxSpeed = 0.f)
+{
+	const float flYaw1 = Math::VectorAngles(tRecord1.m_vDirection).y, flYaw2 = Math::VectorAngles(tRecord2.m_vDirection).y;
+	const float flTime1 = tRecord1.m_flSimTime, flTime2 = tRecord2.m_flSimTime;
+	const int iTicks = std::max(TIME_TO_TICKS(flTime1 - flTime2), 1);
+
+	*pYaw = Math::NormalizeAngle(flYaw1 - flYaw2);
+	if (flMaxSpeed && tRecord1.m_iMode != 1)
+		*pYaw *= std::clamp(tRecord1.m_vVelocity.Length2D() / flMaxSpeed, 0.f, 1.f);
+	if (Vars::Aimbot::Projectile::MovesimFrictionFlags.Value & Vars::Aimbot::Projectile::MovesimFrictionFlagsEnum::CalculateIncrease && tRecord1.m_iMode == 1)
+		*pYaw /= GetFrictionScale(tRecord1.m_vVelocity.Length2D(), *pYaw, tRecord1.m_vVelocity.z + GetGravity() * TICK_INTERVAL, 0.f, 56.f);
+	if (fabsf(*pYaw) > 45.f)
+		return false;
+
+	static int iChanges, iStart;
+
+	static int iStaticSign = 0;
+	const int iLastSign = iStaticSign;
+	const int iCurrSign = iStaticSign = *pYaw ? sign(*pYaw) : iStaticSign;
+
+	static bool bStaticZero = false;
+	const bool iLastZero = bStaticZero;
+	const bool iCurrZero = bStaticZero = !*pYaw;
+
+	const bool bChanged = iCurrSign != iLastSign || iCurrZero && iLastZero;
+	const bool bStraight = fabsf(*pYaw) * tRecord1.m_vVelocity.Length2D() * iTicks < flStraightFuzzyValue; // dumb way to get straight bool
+
+	if (bStart)
+	{
+		iChanges = 0, iStart = TIME_TO_TICKS(flTime1);
+		if (bStraight && ++iChanges > iMaxChanges)
+			return false;
+		return true;
+	}
+	else
+	{
+		if ((bChanged || bStraight) && ++iChanges > iMaxChanges)
+			return false;
+		return iChanges && iStart - TIME_TO_TICKS(flTime2) > iMaxChangeTime ? false : true;
+	}
 }
+
 
 void CMovementSimulation::GetAverageYaw(MoveStorage& tMoveStorage, int iSamples)
 {
@@ -451,8 +494,7 @@ void CMovementSimulation::GetAverageYaw(MoveStorage& tMoveStorage, int iSamples)
 
 		float flYaw = 0.f;
 		bool bResult = GetYawDifference(tRecord1, tRecord2, !iTicks, &flYaw, flStraightFuzzyValue, iMaxChanges, iMaxChangeTime, flMaxSpeed);
-		if (Vars::Debug::Logging.Value)
-			SDK::Output("GetYawDifference", std::format("{} ({}): {}, {}", i, iTicks, flYaw, bResult).c_str(), { 50, 127, 75 }, OUTPUT_CONSOLE | OUTPUT_DEBUG);
+		SDK::Output("GetYawDifference", std::format("{} ({}): {}, {}", i, iTicks, flYaw, bResult).c_str(), { 50, 127, 75 }, Vars::Debug::Logging.Value);
 		if (!bResult)
 			break;
 
